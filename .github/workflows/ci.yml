@@ -1,0 +1,96 @@
+name: CI
+
+on:
+    pull_request:
+        branches: [ master ]
+
+jobs:
+    tests:
+        name: Finance tracker
+        runs-on: ubuntu-latest
+
+        services:
+            postgres:
+                image: postgres:15
+                env:
+                    POSTGRES_DB: finance_db_test
+                    POSTGRES_USER: finance_user
+                    POSTGRES_PASSWORD: finance_password
+                    POSTGRES_HOST_AUTH_METHOD: trust
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup PHP
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.2'
+                  extensions: mbstring, xml, ctype, iconv, intl, pdo_pgsql, pgsql
+                  coverage: xdebug
+
+            - name: Validate composer.json
+              run: composer validate --strict
+
+            - name: Install dependencies
+              run: composer install --prefer-dist --no-progress --no-suggest
+
+            - name: Copy environment file
+              run: cp .env.test .env
+
+            - name: Wait for PostgreSQL
+              run: |
+                  while ! pg_isready -h 127.0.0.1 -p 5432; do
+                    echo "Waiting for PostgreSQL..."
+                    sleep 1
+                  done
+
+            - name: Create database
+              run: |
+                  php bin/console doctrine:database:create --env=test
+                  php bin/console doctrine:migrations:migrate --env=test -n
+
+            - name: Run PHPStan
+              run: vendor/bin/phpstan analyse
+
+            - name: Run PHPUnit tests
+              run: vendor/bin/phpunit
+
+            - name: Run Doctrine validation
+              run: php bin/console doctrine:schema:validate --env=test
+
+    security:
+        name: Security Check
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Run Symfony Security Check
+              run: composer require --dev symfony/security-checker && ./vendor/bin/security-checker security:check
+
+    docker:
+        name: Build Docker Image
+        runs-on: ubuntu-latest
+        if: github.ref == 'refs/heads/main'
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v2
+
+            - name: Build Docker image
+              run: docker build -t finance-tracker-backend:latest .
+
+            - name: Test Docker image
+              run: docker run --rm finance-tracker-backend:latest php bin/console --version
