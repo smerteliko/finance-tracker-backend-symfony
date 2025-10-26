@@ -2,7 +2,9 @@
 
 namespace App\DataFixtures;
 
+use App\Entity\Category;
 use App\Entity\Transaction;
+use App\Entity\User;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
@@ -48,15 +50,16 @@ class TransactionFixtures extends Fixture implements DependentFixtureInterface
 
     /**
      * @throws RandomException
+     * @throws \Exception
      */
     public function load(ObjectManager $manager): void
     {
         $users = [
-            $this->getReference('user_john.doe@example.com'),
-            $this->getReference('user_jane.smith@example.com'),
-            $this->getReference('user_mike.wilson@example.com'),
-            $this->getReference('user_sarah.johnson@example.com'),
-            $this->getReference('user_alex.brown@example.com'),
+            $this->getReference('user_john.doe@example.com', User::class),
+            $this->getReference('user_jane.smith@example.com', User::class),
+            $this->getReference('user_mike.wilson@example.com', User::class),
+            $this->getReference('user_sarah.johnson@example.com', User::class),
+            $this->getReference('user_alex.brown@example.com', User::class),
         ];
 
         foreach ($users as $user) {
@@ -65,7 +68,7 @@ class TransactionFixtures extends Fixture implements DependentFixtureInterface
                 $transaction = new Transaction();
 
                 // Random date within last 6 months
-                $date = new \DateTimeImmutable('-' . rand(0, 180) . ' days');
+                $date = new \DateTimeImmutable('-' . random_int(0, 180) . ' days');
                 $transaction->setDate($date);
 
                 // 30% chance of income, 70% chance of expense
@@ -113,7 +116,7 @@ class TransactionFixtures extends Fixture implements DependentFixtureInterface
         ];
 
         foreach ($categoryNames as $name) {
-            $categories[] = $this->getReference('category_' . $userEmail . '_' . $name);
+            $categories[] = $this->getReference('category_' . $userEmail . '_' . $name, Category::class);
         }
 
         return $categories;

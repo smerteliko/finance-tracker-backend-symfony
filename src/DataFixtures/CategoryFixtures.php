@@ -37,11 +37,11 @@ class CategoryFixtures extends Fixture implements DependentFixtureInterface
     public function load(ObjectManager $manager): void
     {
         $users = [
-            $this->getReference('user_john.doe@example.com'),
-            $this->getReference('user_jane.smith@example.com'),
-            $this->getReference('user_mike.wilson@example.com'),
-            $this->getReference('user_sarah.johnson@example.com'),
-            $this->getReference('user_alex.brown@example.com'),
+            $this->getReference('user_john.doe@example.com', User::class),
+            $this->getReference('user_jane.smith@example.com', User::class),
+            $this->getReference('user_mike.wilson@example.com', User::class),
+            $this->getReference('user_sarah.johnson@example.com', User::class),
+            $this->getReference('user_alex.brown@example.com', User::class),
         ];
 
         foreach ($users as $user) {

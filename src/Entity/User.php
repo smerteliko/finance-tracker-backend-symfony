@@ -5,58 +5,85 @@ namespace App\Entity;
 use App\Repository\UserRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use Ramsey\Uuid\Uuid;
+use Ramsey\Uuid\UuidInterface;
+use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\Table(name: 'users')]
-class User implements UserInterface
-{
+#[ORM\HasLifecycleCallbacks]
+#[ORM\Index(name: 'idx_users_email', columns: ['email'])]
+#[ORM\UniqueConstraint(name: 'uniq_users_uuid', columns: ['uuid'])]
+class User implements UserInterface, PasswordAuthenticatedUserInterface {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
     #[Groups(['user:read'])]
     private ?int $id = null;
 
-    #[ORM\Column(length: 255)]
+    #[ORM\Column(type: 'uuid', unique: true)]
+    #[Groups(['user:read', 'transaction:read'])]
+    private UuidInterface $uuid;
+
+    #[ORM\Column(type: Types::STRING, length: 255)]
     #[Groups(['user:read', 'transaction:read'])]
     private ?string $firstName = null;
 
-    #[ORM\Column(length: 255)]
+    #[ORM\Column(type: Types::STRING, length: 255)]
     #[Groups(['user:read', 'transaction:read'])]
     private ?string $lastName = null;
 
-    #[ORM\Column(length: 255, unique: true)]
+    #[ORM\Column(type: Types::STRING, length: 255, unique: true)]
     #[Groups(['user:read'])]
     private ?string $email = null;
 
-    #[ORM\Column(length: 255)]
+    #[ORM\Column(type: Types::STRING, length: 255)]
     private ?string $password = null;
 
-    #[ORM\OneToMany( targetEntity: Transaction::class, mappedBy: 'user' )]
+    #[ORM\OneToMany( targetEntity: Transaction::class, mappedBy: 'user', orphanRemoval: true )]
     private Collection $transactions;
 
-    #[ORM\OneToMany( targetEntity: Category::class, mappedBy: 'user' )]
+    #[ORM\OneToMany( targetEntity: Category::class, mappedBy: 'user', orphanRemoval: true )]
     private Collection $categories;
 
-    #[ORM\Column]
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private ?\DateTimeImmutable $createdAt = null;
 
-    #[ORM\Column]
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private ?\DateTimeImmutable $updatedAt = null;
 
     public function __construct()
     {
+        $this->uuid = Uuid::uuid4();
         $this->transactions = new ArrayCollection();
         $this->categories = new ArrayCollection();
+    }
+
+    #[ORM\PrePersist]
+    public function setCreatedAtValue(): void
+    {
         $this->createdAt = new \DateTimeImmutable();
+        $this->updatedAt = new \DateTimeImmutable();
+    }
+
+    #[ORM\PreUpdate]
+    public function setUpdatedAtValue(): void
+    {
         $this->updatedAt = new \DateTimeImmutable();
     }
 
     public function getId(): ?int
     {
         return $this->id;
+    }
+
+    public function getUuid(): UuidInterface
+    {
+        return $this->uuid;
     }
 
     public function getFirstName(): ?string
@@ -144,9 +171,4 @@ class User implements UserInterface
         return $this->updatedAt;
     }
 
-    public function setUpdatedAt(\DateTimeImmutable $updatedAt): static
-    {
-        $this->updatedAt = $updatedAt;
-        return $this;
-    }
 }
