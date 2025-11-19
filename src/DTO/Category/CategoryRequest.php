@@ -2,22 +2,26 @@
 
 namespace App\DTO\Category;
 
-use OpenApi\Attributes as OA;
+use App\Enum\TransactionType;
 use Symfony\Component\Validator\Constraints as Assert;
+use OpenApi\Attributes as OA;
 
-class CategoryRequest
+#[OA\Schema(title: 'CategoryRequest', description: 'Data required to create or update a category.')]
+final class CategoryRequest
 {
-    #[Assert\NotBlank(message: 'common.required_field')]
-    #[OA\Property(description: 'Category name', example: 'Food & Dining')]
-    public string $name;
+    public function __construct(
+        #[Assert\NotBlank(message: 'Category name cannot be blank.')]
+        #[Assert\Length(min: 3, max: 255)]
+        #[OA\Property( description: 'The name of the category.', type: 'string', example: 'Groceries' )]
+        public readonly ?string $name,
 
-    #[Assert\NotBlank(message: 'common.required_field')]
-    #[OA\Property(description: 'Category color', example: '#FF6384')]
-    public string $color;
+        #[Assert\NotBlank(message: 'Category type cannot be blank.')]
+        #[Assert\Choice(callback: [TransactionType::class, 'values'], message: 'Type must be either INCOME or EXPENSE.')]
+        #[OA\Property( description: 'The transaction type associated with the category.', type: 'string', enum: [ 'INCOME', 'EXPENSE'] )]
+        public readonly ?string $type,
 
-    #[Assert\NotBlank(message: 'common.required_field')]
-    #[Assert\Choice(['INCOME', 'EXPENSE'], message: 'validation.type_invalid')]
-    #[OA\Property( description: 'Category type', enum: [ 'INCOME', 'EXPENSE'], example: 'EXPENSE' )]
-    public string $type;
-
+        #[Assert\Regex(pattern: '/^#[0-9a-fA-F]{6}$/', message: 'Color must be a valid 6-digit hex code like #RRGGBB.')]
+        #[OA\Property( description: 'Optional hex color code for the category.', type: 'string', example: '#FF5733', nullable: true )]
+        public readonly ?string $color = null,
+    ) {}
 }
