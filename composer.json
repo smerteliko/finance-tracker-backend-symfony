@@ -52,7 +52,8 @@
         "doctrine/doctrine-fixtures-bundle": "^3.4",
         "zircote/swagger-php": "^4.7",
         "nelmio/api-doc-bundle": "^4.24",
-        "ramsey/uuid-doctrine": "^1.8",
+        "ramsey/uuid-doctrine": "^2.0",
+        "ramsey/uuid": "^4.0",
         "predis/predis": "^2.2"
     },
     "config": {
@@ -107,6 +108,7 @@
         }
     },
     "require-dev": {
+        "fakerphp/faker": "*",
         "kint-php/kint": "^6.0",
         "phpstan/phpstan": "^1.10",
         "phpunit/phpunit": "^11.5",

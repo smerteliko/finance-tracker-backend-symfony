@@ -18,39 +18,3 @@ services:
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
-    App\Service\MapperServices\MapperInterface: ~
-
-    # Concrete mappers
-    App\Service\MapperServices\Mappers\UserMapper:
-        tags: [ 'app.mapper' ]
-        public: true
-
-    App\Service\MapperServices\Mappers\TransactionMapper:
-        arguments:
-            $categoryMapper: '@App\Service\MapperServices\Mappers\CategoryMapper'
-        tags: [ 'app.mapper' ]
-        public: true
-
-    App\Service\MapperServices\Mappers\CategoryMapper:
-        tags: [ 'app.mapper' ]
-        public: true
-
-    App\Service\MapperServices\Mappers\AnalyticsMapper:
-        tags: [ 'app.mapper' ]
-        public: true
-
-    App\Service\MapperServices\Mappers\PaginatedMapper:
-        tags: [ 'app.mapper' ]
-        public: true
-
-    # Mapper Facade
-    App\Service\MapperServices\MapperFacade:
-        arguments:
-            $mappers: !tagged_iterator app.mapper
-        public: true
-
-
-    App\Controller\AuthController:
-        public: true
-        autowire: true
-        tags: ['controller.service_arguments']

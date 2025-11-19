@@ -4,21 +4,23 @@ namespace App\DTO\Error;
 
 use OpenApi\Attributes as OA;
 
-class ErrorResponse
+#[OA\Schema(title: 'ErrorResponse', description: 'Standardized API error response format.')]
+final class ErrorResponse
 {
     public function __construct(
-        #[OA\Property(description: 'Error message', example: 'Invalid credentials')]
-        public string $error,
+        #[OA\Property(type: 'string', format: 'date-time')]
+        public readonly string $timestamp,
 
-        #[OA\Property(description: 'Error code', example: 401)]
-        public int $code,
+        #[OA\Property(type: 'integer', example: 404)]
+        public readonly int $status,
 
-//        #[OA\Property(description: 'Error details', example: 'Additional error information')]
-//        public ?string $details = null,
+        #[OA\Property(type: 'string', example: 'Not Found')]
+        public readonly string $error,
 
-        #[OA\Property(description: 'Timestamp', example: '2024-01-15T10:30:00Z')]
-        public ?string $timestamp
-    ) {
-        $this->timestamp = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s\Z');
-    }
+        #[OA\Property(type: 'string', example: 'Resource with ID X not found.')]
+        public readonly string $message,
+
+        #[OA\Property(type: 'string', example: '/api/accounts/123-456')]
+        public readonly string $path
+    ) {}
 }

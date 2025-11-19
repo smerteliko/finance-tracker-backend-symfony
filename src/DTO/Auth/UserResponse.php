@@ -3,15 +3,13 @@
 namespace App\DTO\Auth;
 
 use OpenApi\Attributes as OA;
+use Ramsey\Uuid\Uuid;
 
-class UserResponse
+final class UserResponse
 {
     public function __construct(
         #[OA\Property(description: 'User ID', example: 1)]
-        public int $id,
-
-        #[OA\Property(description: 'User UUID', example: '123e4567-e89b-12d3-a456-426614174000')]
-        public string $uuid,
+        public string $id,
 
         #[OA\Property(description: 'User first name', example: 'John')]
         public string $firstName,
