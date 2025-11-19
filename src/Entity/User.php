@@ -7,60 +7,84 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use Ramsey\Uuid\Doctrine\UuidGenerator;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Serializer\Annotation\Groups;
+use OpenApi\Attributes as OA;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
-#[ORM\Table(name: 'users')]
+#[ORM\Table(name: 'users', options: ['comment' => 'Main user authentication and profile data'])]
 #[ORM\HasLifecycleCallbacks]
+#[OA\Schema(schema: 'User',title: 'User', description: 'User profile and authentication data.')]
 #[ORM\Index(name: 'idx_users_email', columns: ['email'])]
-#[ORM\UniqueConstraint(name: 'uniq_users_uuid', columns: ['uuid'])]
 class User implements UserInterface, PasswordAuthenticatedUserInterface {
+
     #[ORM\Id]
-    #[ORM\GeneratedValue]
-    #[ORM\Column]
+    #[ORM\Column(type: 'uuid', unique: true, options: ['comment' => 'Primary key, UUID v4'])]
+    #[ORM\GeneratedValue(strategy: 'CUSTOM')]
+    #[ORM\CustomIdGenerator(class: UuidGenerator::class)]
+    #[Groups(['user:read', 'transaction:read', 'category:read', 'account:read'])]
+    #[OA\Property(type: 'string', format: 'uuid')]
+    protected UuidInterface $id;
+
+    #[ORM\Column(type: Types::STRING, length: 255, options: ['comment' => 'User first name'])]
     #[Groups(['user:read'])]
-    private ?int $id = null;
-
-    #[ORM\Column(type: 'uuid', unique: true)]
-    #[Groups(['user:read', 'transaction:read'])]
-    private UuidInterface $uuid;
-
-    #[ORM\Column(type: Types::STRING, length: 255)]
-    #[Groups(['user:read', 'transaction:read'])]
+    #[OA\Property(type: 'string')]
     private ?string $firstName = null;
 
-    #[ORM\Column(type: Types::STRING, length: 255)]
-    #[Groups(['user:read', 'transaction:read'])]
+    #[ORM\Column(type: Types::STRING, length: 255, options: ['comment' => 'User last name'])]
+    #[Groups(['user:read'])]
+    #[OA\Property(type: 'string')]
     private ?string $lastName = null;
 
-    #[ORM\Column(type: Types::STRING, length: 255, unique: true)]
+    #[ORM\Column(length: 180, unique: true, options: ['comment' => 'Unique email address, used for login'])]
     #[Groups(['user:read'])]
+    #[OA\Property(type: 'string', format: 'email')]
     private ?string $email = null;
 
     #[ORM\Column(type: Types::STRING, length: 255)]
     private ?string $password = null;
 
-    #[ORM\OneToMany( targetEntity: Transaction::class, mappedBy: 'user', orphanRemoval: true )]
+    #[ORM\OneToMany( targetEntity: Transaction::class, mappedBy: 'users', orphanRemoval: true )]
     private Collection $transactions;
 
-    #[ORM\OneToMany( targetEntity: Category::class, mappedBy: 'user', orphanRemoval: true )]
+    #[ORM\OneToMany( targetEntity: Category::class, mappedBy: 'users', orphanRemoval: true )]
     private Collection $categories;
 
-    #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
+    #[ORM\Column(type: 'json', nullable: true, options: ['comment' => 'User settings (currency, locale, theme)'])]
+    #[Groups(['user:read'])]
+    #[OA\Property(type: 'object', example: ['currency' => 'USD'])]
+    private ?array $settings = [
+        'currency' => 'USD',
+        'locale' => 'en',
+    ];
+
+    #[ORM\OneToMany( targetEntity: Account::class, mappedBy: 'users', orphanRemoval: true )]
+    private Collection $accounts;
+
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, options: ['comment' => 'Timestamp when the user was created'])]
+    #[Groups(['user:read'])]
+    #[OA\Property(type: 'string', format: 'date-time')]
     private ?\DateTimeImmutable $createdAt = null;
 
-    #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, options: ['comment' => 'Timestamp of the last update'])]
+    #[Groups(['user:read'])]
+    #[OA\Property(type: 'string', format: 'date-time')]
     private ?\DateTimeImmutable $updatedAt = null;
 
     public function __construct()
     {
-        $this->uuid = Uuid::uuid4();
+        $this->id = Uuid::uuid4();
         $this->transactions = new ArrayCollection();
         $this->categories = new ArrayCollection();
+    }
+
+    public function getId(): ?UuidInterface
+    {
+        return $this->id;
     }
 
     #[ORM\PrePersist]
@@ -74,16 +98,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface {
     public function setUpdatedAtValue(): void
     {
         $this->updatedAt = new \DateTimeImmutable();
-    }
-
-    public function getId(): ?int
-    {
-        return $this->id;
-    }
-
-    public function getUuid(): UuidInterface
-    {
-        return $this->uuid;
     }
 
     public function getFirstName(): ?string
@@ -135,6 +149,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface {
         return ['ROLE_USER'];
     }
 
+    #[\Deprecated(since: 'symfony/security-core 7.3')]
     public function eraseCredentials(): void
     {
         // If you store any temporary, sensitive data on the user, clear it here
@@ -169,6 +184,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface {
     public function getUpdatedAt(): ?\DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    public function getSettings(): ?array
+    {
+        return $this->settings;
+    }
+
+    public function setSettings(?array $settings): static
+    {
+        $this->settings = $settings;
+
+        return $this;
     }
 
 }

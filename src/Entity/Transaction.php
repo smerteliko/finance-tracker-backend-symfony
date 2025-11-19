@@ -2,15 +2,18 @@
 
 namespace App\Entity;
 
+use App\Enum\TransactionType;
 use App\Repository\TransactionRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use Ramsey\Uuid\Doctrine\UuidGenerator;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
 use Symfony\Component\Serializer\Annotation\Groups;
+use OpenApi\Attributes as OA;
 
 #[ORM\Entity(repositoryClass: TransactionRepository::class)]
-#[ORM\Table(name: 'transactions')]
+#[ORM\Table(name: 'transactions', options: ['comment' => 'Financial transactions (income/expense) records'])]
 #[ORM\HasLifecycleCallbacks]
 #[ORM\Index(name: 'idx_transactions_user_id', columns: ['user_id'])]
 #[ORM\Index(name: 'idx_transactions_category_id', columns: ['category_id'])]
@@ -19,53 +22,68 @@ use Symfony\Component\Serializer\Annotation\Groups;
 #[ORM\Index(name: 'idx_transactions_user_type', columns: ['user_id', 'type'])]
 #[ORM\Index(name: 'idx_transactions_user_category', columns: ['user_id', 'category_id'])]
 #[ORM\Index(name: 'idx_transactions_user_date_type', columns: ['user_id', 'date', 'type'])]
-#[ORM\UniqueConstraint(name: 'uniq_transactions_uuid', columns: ['uuid'])]
+#[OA\Schema(schema: 'Transaction', title: 'Transaction', description: 'A single income or expense record.')]
 class Transaction
 {
     #[ORM\Id]
-    #[ORM\GeneratedValue]
-    #[ORM\Column(type: Types::INTEGER)]
-    #[Groups(['transaction:read'])]
-    private ?int $id = null;
-
     #[ORM\Column(type: 'uuid', unique: true)]
+    #[ORM\GeneratedValue(strategy: 'CUSTOM')]
+    #[ORM\CustomIdGenerator(class: UuidGenerator::class)]
     #[Groups(['transaction:read'])]
-    private UuidInterface $uuid;
+    #[OA\Property(type: 'string', format: 'uuid')]
+    protected UuidInterface $id;
 
-    #[ORM\Column(type: Types::DECIMAL, precision: 15, scale: 2)]
+    #[ORM\Column(type: Types::DECIMAL, precision: 15, scale: 2,options: ['comment' => 'Transaction amount'])]
     #[Groups(['transaction:read'])]
+    #[OA\Property(type: 'number', format: 'float')]
     private ?string $amount = null;
 
-    #[ORM\Column(type: Types::STRING, length: 20)]
+    #[ORM\Column(type: 'string', enumType: TransactionType::class, options: ['comment' => 'Transaction type (INCOME or EXPENSE)'])]
     #[Groups(['transaction:read'])]
-    private ?string $type = null; // INCOME or EXPENSE
+    #[OA\Property(type: 'string', enum: ['INCOME', 'EXPENSE'])]
+    private ?TransactionType $type = null; // INCOME or EXPENSE
 
-    #[ORM\Column(type: Types::STRING, length: 500, nullable: true)]
+    #[ORM\Column(type: Types::STRING, length: 500, nullable: true, options: ['comment' => 'Brief description or memo'])]
     #[Groups(['transaction:read'])]
+    #[OA\Property(type: 'string', nullable: true)]
     private ?string $description = null;
 
-    #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, options: ['comment' => 'The date and time the transaction occurred'])]
     #[Groups(['transaction:read'])]
+    #[OA\Property(type: 'string', format: 'date-time')]
     private ?\DateTimeImmutable $date = null;
 
     #[ORM\ManyToOne(targetEntity: Category::class)]
-    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
+    #[ORM\JoinColumn(nullable: false, options: ['comment' => 'Foreign key to the associated category'])]
     #[Groups(['transaction:read'])]
+    #[OA\Property(ref: '#/components/schemas/Category')]
     private ?Category $category = null;
 
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private ?User $user = null;
 
+    #[ORM\ManyToOne(inversedBy: 'transactions')]
+    #[ORM\JoinColumn(nullable: false, options: ['comment' => 'Foreign key to the associated account'])]
+    #[Groups(['transaction:read'])]
+    #[OA\Property(ref: '#/components/schemas/Account')]
+    private ?Account $account = null;
+    #[ORM\Column(type: 'text', nullable: true, options: ['comment' => 'Detailed user notes'])]
+    #[Groups(['transaction:read'])]
+    #[OA\Property(type: 'string', nullable: true)]
+    private ?string $notes = null;
+
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
+    #[Groups(['transaction:read'])]
     private ?\DateTimeImmutable $createdAt = null;
 
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
+    #[Groups(['transaction:read'])]
     private ?\DateTimeImmutable $updatedAt = null;
 
     public function __construct()
     {
-        $this->uuid = Uuid::uuid4();
+        $this->id = Uuid::uuid4();
         $this->date = new \DateTimeImmutable();
     }
 
@@ -82,36 +100,29 @@ class Transaction
         $this->updatedAt = new \DateTimeImmutable();
     }
 
-    public function getId(): ?int
-    {
+    public function getId(): UuidInterface {
         return $this->id;
     }
 
-    public function getUuid(): UuidInterface
-    {
-        return $this->uuid;
-    }
 
     public function getAmount(): ?string
     {
         return $this->amount;
     }
 
-    public function setAmount(string $amount): static
+    public function setAmount(string $amount): void
     {
         $this->amount = $amount;
-        return $this;
     }
 
-    public function getType(): ?string
+    public function getType(): ?TransactionType
     {
         return $this->type;
     }
 
-    public function setType(string $type): static
+    public function setType(TransactionType $type): void
     {
         $this->type = $type;
-        return $this;
     }
 
     public function getDescription(): ?string
@@ -119,10 +130,9 @@ class Transaction
         return $this->description;
     }
 
-    public function setDescription(?string $description): static
+    public function setDescription(?string $description): void
     {
         $this->description = $description;
-        return $this;
     }
 
     public function getDate(): ?\DateTimeImmutable
@@ -130,10 +140,9 @@ class Transaction
         return $this->date;
     }
 
-    public function setDate(\DateTimeImmutable $date): static
+    public function setDate(\DateTimeImmutable $date): void
     {
         $this->date = $date;
-        return $this;
     }
 
     public function getCategory(): ?Category
@@ -141,10 +150,9 @@ class Transaction
         return $this->category;
     }
 
-    public function setCategory(?Category $category): static
+    public function setCategory(?Category $category): void
     {
         $this->category = $category;
-        return $this;
     }
 
     public function getUser(): ?User
@@ -152,10 +160,9 @@ class Transaction
         return $this->user;
     }
 
-    public function setUser(?User $user): static
+    public function setUser(?User $user): void
     {
         $this->user = $user;
-        return $this;
     }
 
     public function getCreatedAt(): ?\DateTimeImmutable
@@ -166,6 +173,30 @@ class Transaction
     public function getUpdatedAt(): ?\DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    public function getAccount(): ?Account
+    {
+        return $this->account;
+    }
+
+    public function setAccount(?Account $account): static
+    {
+        $this->account = $account;
+
+        return $this;
+    }
+
+    public function getNotes(): ?string
+    {
+        return $this->notes;
+    }
+
+    public function setNotes(?string $notes): static
+    {
+        $this->notes = $notes;
+
+        return $this;
     }
 
 }
