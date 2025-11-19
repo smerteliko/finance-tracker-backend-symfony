@@ -2,37 +2,44 @@
 
 namespace App\DTO\Transaction;
 
+use App\Enum\TransactionType;
 use Symfony\Component\Validator\Constraints as Assert;
 use OpenApi\Attributes as OA;
 
-class TransactionRequest
+#[OA\Schema(title: 'TransactionRequest', description: 'Data required to create or update a transaction.')]
+final class TransactionRequest
 {
-    #[Assert\NotBlank(message: 'common.required_field')]
-    #[Assert\Type('numeric')]
-    #[Assert\Positive(message: 'validation.amount_positive')]
-    #[OA\Property(description: 'Transaction amount', example: 100.50)]
-    public string $amount;
+    #[Assert\NotBlank]
+    #[Assert\Uuid]
+    #[OA\Property( description: 'UUID of the associated account.', type: 'string', format: 'uuid' )]
+    public readonly ?string $accountId;
 
-    #[Assert\NotBlank(message: 'common.required_field')]
-    #[Assert\Choice(['INCOME', 'EXPENSE'], message: 'validation.type_invalid')]
-    #[OA\Property( description: 'Transaction type', enum: [ 'INCOME', 'EXPENSE'], example: 'EXPENSE' )]
-    public string $type;
+    #[Assert\NotBlank]
+    #[Assert\Uuid]
+    #[OA\Property( description: 'UUID of the associated category.', type: 'string', format: 'uuid' )]
+    public readonly ?string $categoryId;
 
-    #[OA\Property(description: 'Transaction description', example: 'Grocery shopping')]
-    public ?string $description = null;
+    #[Assert\NotBlank]
+    #[Assert\Type('float')]
+    #[Assert\Positive]
+    #[OA\Property(type: 'number', format: 'float', example: 45.99)]
+    public readonly float $amount;
 
-    #[Assert\NotBlank(message: 'common.required_field')]
-    #[Assert\DateTime(message: 'validation.date_invalid')]
-    #[OA\Property(description: 'Transaction date', example: '2024-01-15T10:30:00Z')]
-    public string $date;
+    #[Assert\NotBlank]
+    #[Assert\Choice(callback: [TransactionType::class, 'values'])]
+    #[OA\Property(type: 'string', enum: ['INCOME', 'EXPENSE'])]
+    public readonly ?string $type;
 
-    #[Assert\NotBlank(message: 'common.required_field')]
-    #[Assert\Type('integer')]
-    #[OA\Property(description: 'Category ID', example: 1)]
-    public int $categoryId;
+    #[Assert\NotBlank]
+    #[Assert\DateTime]
+    #[OA\Property(type: 'string', format: 'date-time', example: '2025-11-17T12:00:00Z')]
+    public readonly ?string $date;
 
-    #[Assert\NotBlank(message: 'common.required_field')]
-    #[Assert\Type('integer')]
-    #[OA\Property(description: 'User ID', example: 1)]
-    public int $userId;
+    #[Assert\Length(max: 255)]
+    #[OA\Property( type: 'string', example: 'Grocery shopping', nullable: true )]
+    public readonly ?string $description;
+
+    #[Assert\Length(max: 1024)]
+    #[OA\Property( description: 'Detailed notes.', type: 'string', nullable: true )]
+    public readonly ?string $notes;
 }

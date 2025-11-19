@@ -2,31 +2,28 @@
 
 namespace App\DTO\Transaction;
 
-use OpenApi\Attributes as OA;
+use Symfony\Component\Validator\Constraints as Assert;
+use App\Enum\TransactionType;
 
-class TransactionFilterRequest
+final class TransactionFilterRequest
 {
-    #[OA\Property(description: 'Page number', example: 0)]
-    public ?int $page = 0;
+    public function __construct(
+        #[Assert\Positive]
+        public readonly int $page = 1,
 
-    #[OA\Property(description: 'Page size', example: 10)]
-    public ?int $size = 10;
+        #[Assert\Range(min: 1, max: 100)]
+        public readonly int $limit = 10,
 
-    #[OA\Property(description: 'Start date filter', example: '2024-01-01T00:00:00Z')]
-    public ?string $startDate = null;
+        #[Assert\Choice(['createdAt', 'date', 'amount'])]
+        public readonly string $sortBy = 'date',
 
-    #[OA\Property(description: 'End date filter', example: '2024-01-31T23:59:59Z')]
-    public ?string $endDate = null;
+        #[Assert\Choice(['asc', 'desc'])]
+        public readonly string $sortOrder = 'desc',
 
-    #[OA\Property( description: 'Transaction type filter', enum: [ 'INCOME', 'EXPENSE'], example: 'EXPENSE' )]
-    public ?string $type = null;
+        #[Assert\Uuid] // Предполагаем, что Account ID - это UUID
+        public readonly ?string $accountId = null,
 
-    #[OA\Property(description: 'Category ID filter', example: 1)]
-    public ?int $categoryId = null;
-
-    #[OA\Property(description: 'Minimum amount filter', example: 10.0)]
-    public ?float $minAmount = null;
-
-    #[OA\Property(description: 'Maximum amount filter', example: 1000.0)]
-    public ?float $maxAmount = null;
+        #[Assert\Choice(callback: [TransactionType::class, 'values'])]
+        public readonly ?string $type = null,
+    ) {}
 }

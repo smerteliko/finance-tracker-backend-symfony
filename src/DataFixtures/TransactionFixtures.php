@@ -2,129 +2,115 @@
 
 namespace App\DataFixtures;
 
-use App\Entity\Category;
 use App\Entity\Transaction;
+use App\Entity\Account;
+use App\Entity\Category;
 use App\Entity\User;
+use App\Enum\TransactionType;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
-use Random\RandomException;
+use Faker\Factory;
 
-class TransactionFixtures extends Fixture implements DependentFixtureInterface
+final class TransactionFixtures extends Fixture implements DependentFixtureInterface
 {
-    private const INCOME_DESCRIPTIONS = [
-        'Monthly salary payment',
-        'Freelance project completion',
-        'Stock dividends',
-        'Rental property income',
-        'Annual bonus',
-        'Investment returns',
-        'Side business revenue',
-        'Consulting fee',
-        'Royalty payment',
-        'Tax refund'
-    ];
+    private const TOTAL_TRANSACTIONS = 1000;
+    private const BATCH_SIZE = 50;
+    private const CATEGORIES_PER_USER = 13; // Based on CategoryFixtures
 
-    private const EXPENSE_DESCRIPTIONS = [
-        'Grocery shopping at Walmart',
-        'Monthly electricity bill',
-        'Dinner at restaurant',
-        'Gas station refill',
-        'Netflix subscription',
-        'Amazon purchase',
-        'Medical checkup',
-        'Car insurance payment',
-        'Home maintenance supplies',
-        'Weekend getaway trip',
-        'Online course purchase',
-        'Gym membership',
-        'Phone bill payment',
-        'Coffee at Starbucks',
-        'Movie tickets',
-        'Book store purchase',
-        'Public transport card',
-        'Haircut at salon',
-        'Birthday gift for friend',
-        'Charity donation'
-    ];
-
-    /**
-     * @throws RandomException
-     * @throws \Exception
-     */
     public function load(ObjectManager $manager): void
     {
-        $users = [
-            $this->getReference('user_john.doe@example.com', User::class),
-            $this->getReference('user_jane.smith@example.com', User::class),
-            $this->getReference('user_mike.wilson@example.com', User::class),
-            $this->getReference('user_sarah.johnson@example.com', User::class),
-            $this->getReference('user_alex.brown@example.com', User::class),
-        ];
+        $faker = Factory::create();
 
-        foreach ($users as $user) {
-            // Create transactions for the last 6 months
-            for ($i = 0; $i < 180; $i++) { // ~180 transactions per user
-                $transaction = new Transaction();
+        $allCategories = [];
+        $userCount = UserFixtures::USERS_COUNT;
 
-                // Random date within last 6 months
-                $date = new \DateTimeImmutable('-' . random_int(0, 180) . ' days');
-                $transaction->setDate($date);
-
-                // 30% chance of income, 70% chance of expense
-                $isIncome = random_int(1, 100) <= 30;
-                $transaction->setType($isIncome ? 'INCOME' : 'EXPENSE');
-
-                if ($isIncome) {
-                    $amount = random_int(500, 5000) + (random_int(0, 99) / 100); // $500 - $5000
-                    $description = self::INCOME_DESCRIPTIONS[array_rand(self::INCOME_DESCRIPTIONS)];
-                    // Get income categories for this user
-                    $categories = array_filter(
-                        $this->getCategoriesForUser($user->getEmail()),
-                        static fn($cat) => $cat->getType() === 'INCOME'
-                    );
-                } else {
-                    $amount = random_int(5, 500) + (random_int(0, 99) / 100); // $5 - $500
-                    $description = self::EXPENSE_DESCRIPTIONS[array_rand(self::EXPENSE_DESCRIPTIONS)];
-                    // Get expense categories for this user
-                    $categories = array_filter(
-                        $this->getCategoriesForUser($user->getEmail()),
-                        static fn($cat) => $cat->getType() === 'EXPENSE'
-                    );
+        for ($i = 1; $i <= $userCount; $i++) {
+            $userCategories = [];
+            for ($k = 0; $k < self::CATEGORIES_PER_USER; $k++) {
+                if ($this->hasReference("user_{$i}_category_{$k}",Category::class)) {
+                    // CRITICAL FIX: Use the required getReference signature
+                    $userCategories[] = $this->getReference("user_{$i}_category_{$k}", Category::class);
                 }
-
-                $transaction->setAmount((string) $amount);
-                $transaction->setDescription($description);
-                $transaction->setUser($user);
-                $transaction->setCategory($categories[array_rand($categories)]);
-
-                $manager->persist($transaction);
+            }
+            if (!empty($userCategories)) {
+                $allCategories[$i] = $userCategories;
             }
         }
 
-        $manager->flush();
-    }
+        for ($t = 1; $t <= self::TOTAL_TRANSACTIONS; $t++) {
+            $userId = $faker->numberBetween(1, $userCount);
+            $accountIndex = $faker->numberBetween(0, 2);
+            $accountRef = "user_{$userId}_account_{$accountIndex}";
 
-    private function getCategoriesForUser(string $userEmail): array
-    {
-        $categories = [];
-        $categoryNames = [
-            'Salary', 'Freelance', 'Investments', 'Bonus', 'Rental Income', 'Dividends',
-            'Food & Dining', 'Transportation', 'Entertainment', 'Utilities', 'Healthcare',
-            'Shopping', 'Travel', 'Education', 'Insurance', 'Home Maintenance',
-            'Subscriptions', 'Gifts & Donations'
-        ];
+            if (!$this->hasReference('user_' . $userId, User::class) || !$this->hasReference($accountRef, Account::class)) {
+                continue;
+            }
 
-        foreach ($categoryNames as $name) {
-            $categories[] = $this->getReference('category_' . $userEmail . '_' . $name, Category::class);
+            /** @var User $user */
+            $user = $this->getReference('user_' . $userId, User::class);
+            /** @var Account $account */
+            $account = $this->getReference($accountRef, Account::class);
+
+            $userCategories = $allCategories[$userId] ?? null;
+            if (empty($userCategories)) { continue; }
+
+            /** @var User $userDetached */
+            $userDetached = $this->getReference('user_' . $userId, User::class);
+            /** @var Account $accountDetached */
+            $accountDetached = $this->getReference($accountRef, Account::class);
+
+            $userCategories = $allCategories[$userId] ?? null;
+            if (empty($userCategories)) { continue; }
+
+            /** @var Category $categoryDetached */
+            $categoryDetached = $faker->randomElement($userCategories);
+
+            $user = $manager->find(User::class, $userDetached->getId());
+            /** @var Account $account */
+            $account = $manager->find(Account::class, $accountDetached->getId());
+            /** @var Category $category */
+            $category = $manager->find(Category::class, $categoryDetached->getId());
+
+            $transactionType = $category->getType();
+            $amount = $faker->randomFloat(2, 5, $transactionType === TransactionType::INCOME ? 1500 : 500);
+            $transactionDate = $faker->dateTimeBetween('-1 year', 'now');
+
+            $transaction = new Transaction();
+            $transaction->setUser($user);
+            $transaction->setAccount($account);
+            $transaction->setCategory($category);
+            $transaction->setAmount($amount);
+            $transaction->setType($transactionType);
+            $transaction->setDate(\DateTimeImmutable::createFromMutable($transactionDate));
+            $transaction->setDescription($faker->sentence(3));
+            $transaction->setNotes($faker->boolean(20) ? $faker->text(50) : null);
+
+            $manager->persist($transaction);
+
+            $currentBalance = $account->getBalance();
+
+            if ($transactionType === TransactionType::INCOME) {
+                $account->setBalance($currentBalance + $amount);
+            } else {
+                $account->setBalance($currentBalance - $amount);
+            }
+
+            if ($t % self::BATCH_SIZE === 0) {
+                $manager->flush();
+                $manager->clear();
+
+            }
         }
 
-        return $categories;
+        $manager->flush(); // Final flush for remaining entities
+        $manager->clear();
     }
 
     public function getDependencies(): array
     {
         return [
+            UserFixtures::class,
             CategoryFixtures::class,
         ];
     }
