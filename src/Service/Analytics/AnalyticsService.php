@@ -2,8 +2,12 @@
 
 namespace App\Service\Analytics;
 
+use App\DTO\Analytics\AnalyticsResponse;
 use App\Entity\User;
+use App\Enum\TransactionType;
 use App\Repository\TransactionRepository;
+use DateTimeImmutable;
+use DateTimeInterface;
 
 final class AnalyticsService
 {
@@ -11,56 +15,55 @@ final class AnalyticsService
         private readonly TransactionRepository $transactionRepository
     ) {}
 
-    public function getAnalytics(User $user, \DateTimeInterface $startDate, \DateTimeInterface $endDate): array
+    /**
+     * Calculates the user's current overall balance (Income - Expense for all time).
+     *
+     * @param User $user
+     * @return float
+     */
+    public function getCurrentBalance(User $user): float
     {
-        $transactions = $this->transactionRepository->findByUserAndDateRange($user, $startDate, $endDate);
+        $income = $this->transactionRepository->sumByType($user, TransactionType::INCOME);
+        $expense = $this->transactionRepository->sumByType($user, TransactionType::EXPENSE);
 
-        $totalIncome = 0;
-        $totalExpense = 0;
-        $expensesByCategory = [];
-        $incomeByCategory = [];
-
-        foreach ($transactions as $transaction) {
-            $amount = (float) $transaction->getAmount();
-            $categoryName = $transaction->getCategory()->getName();
-            $categoryColor = $transaction->getCategory()->getColor();
-
-            if ($transaction->getType() === 'INCOME') {
-                $totalIncome += $amount;
-                $incomeByCategory[$categoryName] = ($incomeByCategory[$categoryName] ?? 0) + $amount;
-            } else {
-                $totalExpense += $amount;
-                $expensesByCategory[$categoryName] = ($expensesByCategory[$categoryName] ?? 0) + $amount;
-            }
-        }
-
-        return [
-            'totalIncome' => $totalIncome,
-            'totalExpense' => $totalExpense,
-            'balance' => $totalIncome - $totalExpense,
-            'expensesByCategory' => $expensesByCategory,
-            'incomeByCategory' => $incomeByCategory,
-            'transactionCount' => count($transactions),
-            'periodStart' => $startDate->format('Y-m-d\TH:i:s\Z'),
-            'periodEnd' => $endDate->format('Y-m-d\TH:i:s\Z')
-        ];
+        return $income - $expense;
     }
 
-    public function getSummary(User $user, \DateTimeInterface $startDate, \DateTimeInterface $endDate): string
+    /**
+     * Calculates detailed analytics for a given period.
+     * Note: This method should be updated to return a raw array and let the controller/serializer handle mapping to AnalyticsResponse.
+     * However, to maintain the DTO structure for non-entity responses, we keep the DTO creation.
+     *
+     * @param User $user
+     * @param ?string $startDateStr
+     * @param ?string $endDateStr
+     * @return AnalyticsResponse
+     */
+    public function getAnalyticsForPeriod(User $user, ?string $startDateStr, ?string $endDateStr): AnalyticsResponse
     {
-        $analytics = $this->getAnalytics($user, $startDate, $endDate);
+        try {
+            $startDate = $startDateStr ? new DateTimeImmutable($startDateStr) : new DateTimeImmutable('-30 days');
+            $endDate = $endDateStr ? new DateTimeImmutable($endDateStr) : new DateTimeImmutable('now');
+        } catch (\Exception $e) {
+            throw new \InvalidArgumentException('Invalid date format provided for analytics period.');
+        }
 
-        $summary = sprintf(
-            "Financial Summary (%s - %s)\n\n",
-            $startDate->format('M d, Y'),
-            $endDate->format('M d, Y')
+        $incomeTotal = $this->transactionRepository->sumByTypeAndPeriod($user, $startDate, $endDate, TransactionType::INCOME);
+        $expenseTotal = $this->transactionRepository->sumByTypeAndPeriod($user, $startDate, $endDate, TransactionType::EXPENSE);
+        $transactionCount = $this->transactionRepository->countByPeriod($user, $startDate, $endDate);
+
+        $incomeByCategory = $this->transactionRepository->sumByTransactionTypeAndCategory($user, TransactionType::INCOME, $startDate, $endDate);
+        $expensesByCategory = $this->transactionRepository->sumByTransactionTypeAndCategory($user, TransactionType::EXPENSE, $startDate, $endDate);
+
+        return new AnalyticsResponse(
+            totalIncome: (float) $incomeTotal,
+            totalExpense: (float) $expenseTotal,
+            balance: (float) $incomeTotal - $expenseTotal,
+            incomeByCategory: $incomeByCategory, // Needs separate DTO mapping if necessary
+            expensesByCategory: $expensesByCategory,
+            transactionCount: $transactionCount,
+            periodStart: $startDate,
+            periodEnd: $endDate
         );
-
-        $summary .= sprintf("Total Income: $%.2f\n", $analytics['totalIncome']);
-        $summary .= sprintf("Total Expenses: $%.2f\n", $analytics['totalExpense']);
-        $summary .= sprintf("Net Balance: $%.2f\n", $analytics['balance']);
-        $summary .= sprintf("Transactions: %d\n", $analytics['transactionCount']);
-
-        return $summary;
     }
 }

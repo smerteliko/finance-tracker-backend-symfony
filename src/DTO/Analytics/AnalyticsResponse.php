@@ -4,63 +4,51 @@ namespace App\DTO\Analytics;
 
 use OpenApi\Attributes as OA;
 
-class AnalyticsResponse
+#[OA\Schema(title: 'AnalyticsResponse', description: 'Detailed financial analytics for a period.')]
+final class AnalyticsResponse
 {
+    #[OA\Property(type: 'number', format: 'float', example: 1200.50)]
+    public readonly float $totalIncome;
+
+    #[OA\Property(type: 'number', format: 'float', example: 800.00)]
+    public readonly float $totalExpense;
+
+    #[OA\Property(type: 'number', format: 'float', example: 400.50)]
+    public readonly float $balance;
+
+    #[OA\Property(type: 'integer', example: 15)]
+    public readonly int $transactionCount;
+
+    #[OA\Property(type: 'string', format: 'date', example: '2025-10-01')]
+    public readonly string $periodStart;
+
+    #[OA\Property(type: 'string', format: 'date', example: '2025-10-31')]
+    public readonly string $periodEnd;
+
+    // Structure for category breakdown (example: [['categoryName' => 'Food', 'totalAmount' => 350.00]])
+    #[OA\Property(type: 'array', items: new OA\Items(type: 'object'))]
+    public readonly array $incomeByCategory;
+
+    #[OA\Property(type: 'array', items: new OA\Items(type: 'object'))]
+    public readonly array $expensesByCategory;
+
     public function __construct(
-        #[OA\Property(description: 'Total income', example: 5000.00)]
-        public float $totalIncome,
-
-        #[OA\Property(description: 'Total expenses', example: 3200.50)]
-        public float $totalExpense,
-
-        #[OA\Property(description: 'Balance', example: 1799.50)]
-        public float $balance,
-
-        #[OA\Property(
-            description: 'Expenses by category',
-            type: 'object',
-            additionalProperties: new OA\AdditionalProperties(
-                properties: [
-                                new OA\Property(property: 'amount', type: 'number'),
-                                new OA\Property(property: 'color', type: 'string'),
-                                new OA\Property(property: 'count', type: 'integer')
-                            ]
-            )
-        )]
-        public array $expensesByCategory,
-
-        #[OA\Property(
-            description: 'Income by category',
-            type: 'object',
-            additionalProperties: new OA\AdditionalProperties(
-                properties: [
-                                new OA\Property(property: 'amount', type: 'number'),
-                                new OA\Property(property: 'color', type: 'string'),
-                                new OA\Property(property: 'count', type: 'integer')
-                            ]
-            )
-        )]
-        public array $incomeByCategory,
-
-        #[OA\Property(
-            description: 'Daily breakdown',
-            type: 'object',
-            additionalProperties: new OA\AdditionalProperties(
-                properties: [
-                                new OA\Property(property: 'income', type: 'number'),
-                                new OA\Property(property: 'expense', type: 'number')
-                            ]
-            )
-        )]
-        public array $dailyBreakdown,
-
-        #[OA\Property(description: 'Total transaction count', example: 45)]
-        public int $transactionCount,
-
-        #[OA\Property(description: 'Period start date', example: '2024-01-01T00:00:00Z')]
-        public string $periodStart,
-
-        #[OA\Property(description: 'Period end date', example: '2024-01-31T23:59:59Z')]
-        public string $periodEnd
-    ) {}
+        float $totalIncome,
+        float $totalExpense,
+        float $balance,
+        array $incomeByCategory,
+        array $expensesByCategory,
+        int $transactionCount,
+        \DateTimeInterface $periodStart,
+        \DateTimeInterface $periodEnd
+    ) {
+        $this->totalIncome = $totalIncome;
+        $this->totalExpense = $totalExpense;
+        $this->balance = $balance;
+        $this->incomeByCategory = $incomeByCategory;
+        $this->expensesByCategory = $expensesByCategory;
+        $this->transactionCount = $transactionCount;
+        $this->periodStart = $periodStart->format('Y-m-d');
+        $this->periodEnd = $periodEnd->format('Y-m-d');
+    }
 }

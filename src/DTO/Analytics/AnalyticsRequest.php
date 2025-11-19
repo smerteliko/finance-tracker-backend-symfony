@@ -5,15 +5,19 @@ namespace App\DTO\Analytics;
 use OpenApi\Attributes as OA;
 use Symfony\Component\Validator\Constraints as Assert;
 
-class AnalyticsRequest
+final class AnalyticsRequest
 {
-    #[Assert\NotBlank(message: 'common.required_field')]
-    #[Assert\DateTime(message: 'validation.date_invalid')]
-    #[OA\Property(description: 'Start date for analytics', example: '2024-01-01T00:00:00Z')]
-    public string $startDate;
+    #[OA\Property( type: 'string', format: 'date-time', example: '2025-10-01T00:00:00Z', nullable: true )]
+    public readonly ?string $startDate;
 
-    #[Assert\NotBlank(message: 'common.required_field')]
-    #[Assert\DateTime(message: 'validation.date_invalid')]
-    #[OA\Property(description: 'End date for analytics', example: '2024-01-31T23:59:59Z')]
-    public string $endDate;
+    #[OA\Property( type: 'string', format: 'date-time', example: '2025-10-31T23:59:59Z', nullable: true )]
+    public readonly ?string $endDate;
+
+    public function __construct(
+        ?string $startDate = null,
+        ?string $endDate = null
+    ) {
+        $this->startDate = $startDate;
+        $this->endDate = $endDate;
+    }
 }
