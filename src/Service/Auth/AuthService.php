@@ -2,74 +2,87 @@
 
 namespace App\Service\Auth;
 
+use App\DTO\Auth\AuthResponse;
 use App\DTO\Auth\LoginRequest;
 use App\DTO\Auth\RegisterRequest;
+use App\DTO\Auth\UserResponse;
 use App\Entity\User;
+use App\Exception\UserAlreadyExistsException;
 use App\Repository\UserRepository;
-use App\Repository\CategoryRepository;
 use App\Service\JWT\JwtService;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
-use Symfony\Component\Security\Core\Exception\AuthenticationException;
+use Symfony\Component\Security\Core\Exception\BadCredentialsException;
+use Symfony\Component\Serializer\SerializerInterface;
 
-class AuthService
+final class AuthService
 {
     public function __construct(
-        private UserRepository $userRepository,
-        private CategoryRepository $categoryRepository,
-        private UserPasswordHasherInterface $passwordHasher,
-        private JwtService $jwtService
+        private readonly UserRepository $userRepository,
+        private readonly UserPasswordHasherInterface $passwordHasher,
+        private readonly JwtService $jwtService,
+        private readonly SerializerInterface $serializer
     ) {}
 
     /**
-     * @throws \Exception
+     * Registers a new user.
+     *
+     * @param RegisterRequest $request
+     * @return User
+     * @throws UserAlreadyExistsException
      */
-    public function register(RegisterRequest $request): array
+    public function register(RegisterRequest $request): User
     {
-        if ($this->userRepository->findByEmail($request->email)) {
-            throw new \Exception('User with this email already exists.');
+        if ($this->userRepository->findOneBy(['email' => $request->email])) {
+            throw new UserAlreadyExistsException();
         }
 
         $user = new User();
+        $user->setEmail($request->email);
         $user->setFirstName($request->firstName);
         $user->setLastName($request->lastName);
-        $user->setEmail($request->email);
         $user->setPassword($this->passwordHasher->hashPassword($user, $request->password));
 
-        // Save user
-        $this->userRepository->save($user, true);
+        $this->userRepository->save($user, true); // Assuming UserRepository has save method
 
-        // Create default categories for the user
-        $defaultCategories = $this->categoryRepository->findDefaultCategoriesForUser($user);
-        foreach ($defaultCategories as $category) {
-            $this->categoryRepository->save($category, false);
-        }
-        $this->userRepository->getEntityManager()->flush();
-
-        $token = $this->jwtService->generateToken($user);
-
-        return [
-            'token' => $token,
-            'userId' => $user->getId(),
-            'firstName' => $user->getFirstName(),
-            'lastName' => $user->getLastName(),
-            'email' => $user->getEmail()
-        ];
+        return $user;
     }
 
-    public function login(LoginRequest $request): array
+    /**
+     * Verifies user credentials during login.
+     *
+     * @param LoginRequest $request
+     * @return User
+     * @throws BadCredentialsException
+     */
+    public function verifyCredentials(LoginRequest $request): User
     {
-        $user = $this->userRepository->findByEmail($request->email);
-        if (!$this->passwordHasher->isPasswordValid($user, $request->password)) {
-            throw new AuthenticationException('Invalid credentials.');
+        $user = $this->userRepository->findOneBy(['email' => $request->email]);
+
+        if (!$user || !$this->passwordHasher->isPasswordValid($user, $request->password)) {
+            throw new BadCredentialsException('Invalid email or password.');
         }
-        $token = $this->jwtService->generateToken($user);
-        return [
-            'token' => $token,
-        ];
+
+        return $user;
     }
 
-    public function getUserByEmail(string $email): User {
-       return $this->userRepository->findByEmail($email);
+    /**
+     * Creates an AuthResponse DTO from User Entity and JWT Token using the Serializer.
+     *
+     * @param User $user
+     * @param string $token
+     * @return AuthResponse
+     */
+    public function createAuthResponse(User $user, string $token): AuthResponse
+    {
+        $userDtoArray = $this->serializer->normalize($user, 'json', [
+            'groups' => ['user:read']
+        ]);
 
+        $userResponse = $this->serializer->denormalize($userDtoArray, UserResponse::class, 'json');
+
+        return new AuthResponse(
+            token: $token,
+            user: $userResponse
+        );
     }
 }

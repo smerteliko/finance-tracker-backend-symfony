@@ -2,132 +2,73 @@
 
 namespace App\Controller;
 
-use App\DTO\Auth\AuthResponse;
 use App\DTO\Auth\LoginRequest;
 use App\DTO\Auth\RegisterRequest;
-use App\DTO\Error\ErrorResponse;
+use App\Entity\User;
 use App\Service\Auth\AuthService;
-use App\Service\MapperServices\MapperFacade;
+use App\Service\JWT\JwtService;
 use OpenApi\Attributes as OA;
-use Nelmio\ApiDocBundle\Attribute\Model;
+use Nelmio\ApiDocBundle\Annotation\Security;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Routing\Annotation\Route;
-use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
+use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\CurrentUser;
 
-#[Route('/api/auth')]
-class AuthController extends AbstractController
-{
-    public function __construct(
-        private  AuthService $authService,
-        private  MapperFacade $mapper
-    ) { }
+#[Route( '/api/auth', name: 'api_auth_' )]
+#[OA\Tag( name: 'Auth & User' )]
+final class AuthController extends AbstractController {
+    public function __construct(private readonly AuthService $authService,
+                                private readonly JwtService  $jwtService) {
+    }
 
     /**
-     * @throws \JsonException
+     * Registers a new user account.
      */
-    #[Route('/register', name: 'auth_register', methods: [ 'POST'])]
-    #[OA\RequestBody(
-        content: new Model(type: RegisterRequest::class)
-    )]
-    #[OA\Response(
-        response: 200,
-        description: 'User registered successfully',
-        content: new OA\JsonContent(
-            properties: [
-                            new OA\Property(property: 'token', type: 'string'),
-                            new OA\Property(property: 'userId', type: 'integer'),
-                            new OA\Property(property: 'firstName', type: 'string'),
-                            new OA\Property(property: 'lastName', type: 'string'),
-                            new OA\Property(property: 'email', type: 'string')
-                        ]
-        )
-    )]
-    #[OA\Response(
-        response: 400,
-        description: 'Validation error',
-        content: new OA\JsonContent(
-            properties: [
-                            new OA\Property(property: 'error', type: 'string')
-                        ]
-        )
-    )]
-    public function register(
-        Request $request,
-        AuthService $authService,
-        ValidatorInterface $validator
-    ): JsonResponse {
-        $data = json_decode($request->getContent(),
-                            TRUE,
-                            512,
-                            JSON_THROW_ON_ERROR);
+    #[Route( '/register', name: 'register', methods: [ 'POST' ] )]
+    #[OA\RequestBody( content: new OA\JsonContent(schema: '#/components/schemas/RegisterRequest') )]
+    #[OA\Response( response: 201, description: 'User successfully registered', content: new OA\JsonContent(schema: '#/components/schemas/AuthResponse') )]
+    #[OA\Response( response: 409, description: 'User with this email already exists' )]
+    public function register(#[MapRequestPayload] RegisterRequest $request): JsonResponse {
+        $user  = $this->authService->register($request);
+        $token = $this->jwtService->generateToken($user);
 
-        $registerRequest = new RegisterRequest();
-        $registerRequest->firstName = $data['firstName'] ?? '';
-        $registerRequest->lastName = $data['lastName'] ?? '';
-        $registerRequest->email = $data['email'] ?? '';
-        $registerRequest->password = $data['password'] ?? '';
+        $authResponse = $this->authService->createAuthResponse($user, $token);
 
-        $errors = $validator->validate($registerRequest);
-        if (count($errors) > 0) {
-            return $this->json(['error' => (string) $errors], 400);
-        }
-
-        try {
-            $result = $authService->register($registerRequest);
-            return $this->json($result);
-        } catch (\Exception $e) {
-            return $this->json(['error' => $e->getMessage()], 400);
-        }
+        return $this->json($authResponse, Response::HTTP_CREATED);
     }
 
+    /**
+     * Logs in a user.
+     */
+    #[Route( '/login', name: 'login', methods: [ 'POST' ] )]
+    #[OA\RequestBody( content: new OA\JsonContent(ref: '#/components/schemas/LoginRequest') )]
+    #[OA\Response( response: 200, description: 'Successful login', content: new OA\JsonContent(schema: '#/components/schemas/AuthResponse') )]
+    #[OA\Response( response: 401, description: 'Invalid credentials' )]
+    public function login(#[MapRequestPayload] LoginRequest $request): JsonResponse {
+        $user  = $this->authService->verifyCredentials($request);
+        $token = $this->jwtService->generateToken($user);
 
-    #[Route('/login', name: 'auth_login', methods: ['POST'])]
-    #[OA\RequestBody(
-        content: new Model(type: LoginRequest::class)
-    )]
-    #[OA\Response(
-        response: 200,
-        description: 'Login successful',
-        content: new Model(type: AuthResponse::class)
-    )]
-    #[OA\Response(
-        response: 401,
-        description: 'Invalid credentials',
-        content: new Model(type: ErrorResponse::class)
-    )]
-    public function login(
-        Request $request,
-        ValidatorInterface $validator
-    ): JsonResponse {
-        $data = json_decode($request->getContent(), true);
-        $loginRequest = new LoginRequest();
-        $loginRequest->email = $data['email'] ?? '';
-        $loginRequest->password = $data['password'] ?? '';
+        $authResponse = $this->authService->createAuthResponse($user, $token);
 
-        $errors = $validator->validate($loginRequest);
-        if (count($errors) > 0) {
-            $errorResponse = new ErrorResponse(
-                error: 'Error processing login',
-                code: 400,timestamp: (new \DateTimeImmutable())->format('Y-m-d\TH:i:s\Z')
-            );
-            return $this->json($errorResponse, 400);
-        }
-
-        try {
-            $result = $this->authService->login($loginRequest);
-            $user = $this->authService->getUserByEmail($loginRequest->email);
-            $authResponse = $this->mapper->mapToAuthResponse($user, $result['token']);
-
-            return $this->json($authResponse);
-        } catch (\Exception $e) {
-            $errorResponse = new ErrorResponse(
-                error: 'Invalid credentials',
-                code: 401, timestamp: (new \DateTimeImmutable())->format('Y-m-d\TH:i:s\Z')
-            );
-            return $this->json($errorResponse, 401);
-        }
+        return $this->json(
+            $authResponse,
+            Response::HTTP_OK,
+        );
     }
 
+    /**
+     * Gets the profile of the currently authenticated user.
+     */
+    #[Route( '/me', name: 'me', methods: [ 'GET' ] )]
+    #[Security( name: 'Bearer' )]
+    #[OA\Response( response: 200, description: 'Returns the user profile', content: new OA\JsonContent(schema: '#/components/schemas/User') )]
+    #[OA\Response( response: 401, description: 'JWT Token missing or invalid' )]
+    public function me(#[CurrentUser] User $user): JsonResponse {
+        return $this->json($user,
+                           Response::HTTP_OK,
+                           [],
+                           [ 'groups' => [ 'user:read' ] ]);
+    }
 }
