@@ -1,8 +1,9 @@
 version: '3.8'
 
 services:
-  database:
-    image: postgres:15
+  finance-tracker-symfony-db:
+    image: postgres:15-alpine
+    container_name: finance-tracker-symfony-db
     environment:
       POSTGRES_DB: finance_db
       POSTGRES_USER: finance_user
@@ -12,29 +13,16 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - finance-tracker-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U symfony -d finance_tracker"]
+      test: ["CMD-SHELL", "pg_isready -U finance_user -d finance_db"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  php:
-    build:
-      context: .
-      dockerfile: docker/php/Dockerfile
-    volumes:
-      - .:/var/www
-      - ./docker/php/php.ini:/usr/local/etc/php/php.ini
-    depends_on:
-      database:
-        condition: service_healthy
-    networks:
-      - finance-tracker-network
-
-  nginx:
+  finance-tracker-symfony-nginx:
+    container_name: finance-tracker-symfony-nginx
     image: nginx:alpine
     ports:
       - "8080:80"
@@ -42,16 +30,34 @@ services:
       - .:/var/www
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
-      - php
+      - finance-tracker-symfony-php
     networks:
       - finance-tracker-network
 
-  redis:
+  finance-tracker-symfony-redis:
+    container_name: finance-tracker-symfony-redis
     image: redis:alpine
     ports:
       - "6379:6379"
     networks:
       - finance-tracker-network
+
+  finance-tracker-symfony-php:
+    container_name: finance-tracker-symfony-php
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    volumes:
+      - .:/var/www
+      - ./docker/php/php.ini:/usr/local/etc/php/php.ini
+    depends_on:
+      finance-tracker-symfony-db:
+        condition: service_healthy
+    networks:
+      - finance-tracker-network
+    entrypoint: /usr/local/bin/docker-entrypoint.sh
+    environment:
+      APP_ENV: dev
 
 volumes:
   postgres_data:
