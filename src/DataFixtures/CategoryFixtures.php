@@ -4,60 +4,70 @@ namespace App\DataFixtures;
 
 use App\Entity\Category;
 use App\Entity\User;
+use App\Enum\TransactionType;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
+use Faker\Factory;
 
-class CategoryFixtures extends Fixture implements DependentFixtureInterface
+final class CategoryFixtures extends Fixture implements DependentFixtureInterface
 {
-    private const CATEGORIES = [
-        // Income categories
-        ['name' => 'Salary', 'type' => 'INCOME', 'color' => '#10b981'],
-        ['name' => 'Freelance', 'type' => 'INCOME', 'color' => '#3b82f6'],
-        ['name' => 'Investments', 'type' => 'INCOME', 'color' => '#8b5cf6'],
-        ['name' => 'Bonus', 'type' => 'INCOME', 'color' => '#06b6d4'],
-        ['name' => 'Rental Income', 'type' => 'INCOME', 'color' => '#84cc16'],
-        ['name' => 'Dividends', 'type' => 'INCOME', 'color' => '#f59e0b'],
-
-        // Expense categories
-        ['name' => 'Food & Dining', 'type' => 'EXPENSE', 'color' => '#ef4444'],
-        ['name' => 'Transportation', 'type' => 'EXPENSE', 'color' => '#f97316'],
-        ['name' => 'Entertainment', 'type' => 'EXPENSE', 'color' => '#ec4899'],
-        ['name' => 'Utilities', 'type' => 'EXPENSE', 'color' => '#6b7280'],
-        ['name' => 'Healthcare', 'type' => 'EXPENSE', 'color' => '#84cc16'],
-        ['name' => 'Shopping', 'type' => 'EXPENSE', 'color' => '#8b5cf6'],
-        ['name' => 'Travel', 'type' => 'EXPENSE', 'color' => '#06b6d4'],
-        ['name' => 'Education', 'type' => 'EXPENSE', 'color' => '#d946ef'],
-        ['name' => 'Insurance', 'type' => 'EXPENSE', 'color' => '#64748b'],
-        ['name' => 'Home Maintenance', 'type' => 'EXPENSE', 'color' => '#f59e0b'],
-        ['name' => 'Subscriptions', 'type' => 'EXPENSE', 'color' => '#10b981'],
-        ['name' => 'Gifts & Donations', 'type' => 'EXPENSE', 'color' => '#ec4899'],
-    ];
-
     public function load(ObjectManager $manager): void
     {
-        $users = [
-            $this->getReference('user_john.doe@example.com', User::class),
-            $this->getReference('user_jane.smith@example.com', User::class),
-            $this->getReference('user_mike.wilson@example.com', User::class),
-            $this->getReference('user_sarah.johnson@example.com', User::class),
-            $this->getReference('user_alex.brown@example.com', User::class),
+        $faker = Factory::create();
+
+        $categoriesData = [
+            // Expenses
+            ['name' => 'Groceries', 'type' => TransactionType::EXPENSE, 'color' => '#FF5733'],
+            ['name' => 'Rent/Mortgage', 'type' => TransactionType::EXPENSE, 'color' => '#3357FF'],
+            ['name' => 'Transportation', 'type' => TransactionType::EXPENSE, 'color' => '#FFC300'],
+            ['name' => 'Utilities', 'type' => TransactionType::EXPENSE, 'color' => '#DAF7A6'],
+            ['name' => 'Restaurants', 'type' => TransactionType::EXPENSE, 'color' => '#C70039'],
+            ['name' => 'Entertainment', 'type' => TransactionType::EXPENSE, 'color' => '#900C3F'],
+            ['name' => 'Shopping', 'type' => TransactionType::EXPENSE, 'color' => '#581845'],
+            ['name' => 'Health & Fitness', 'type' => TransactionType::EXPENSE, 'color' => '#117A65'],
+            ['name' => 'Travel', 'type' => TransactionType::EXPENSE, 'color' => '#5DADE2'],
+            ['name' => 'Education', 'type' => TransactionType::EXPENSE, 'color' => '#AEB6BF'],
+            ['name' => 'Investments Loss', 'type' => TransactionType::EXPENSE, 'color' => '#E74C3C'],
+
+            // Incomes
+            ['name' => 'Salary', 'type' => TransactionType::INCOME, 'color' => '#33FF57'],
+            ['name' => 'Freelance Income', 'type' => TransactionType::INCOME, 'color' => '#2ECC71'],
+            ['name' => 'Investments Gain', 'type' => TransactionType::INCOME, 'color' => '#F1C40F'],
+            ['name' => 'Gifts', 'type' => TransactionType::INCOME, 'color' => '#D35400'],
         ];
 
-        foreach ($users as $user) {
-            foreach (self::CATEGORIES as $categoryData) {
+        $userCount = UserFixtures::USERS_COUNT; // Assuming 3 users from UserFixtures
+
+        for ($i = 1; $i <= $userCount; $i++) {
+            /** @var \App\Entity\User $user */
+            $user = $this->getReference('user_' . $i, User::class);
+
+            foreach ($categoriesData as $key => $data) {
                 $category = new Category();
-                $category->setName($categoryData['name']);
-                $category->setType($categoryData['type']);
-                $category->setColor($categoryData['color']);
                 $category->setUser($user);
+                $category->setName($data['name']);
+
+                // CRITICAL FIX: The type is already an Enum object, so we set it directly.
+                $category->setType($data['type']);
+
+                $category->setColor($data['color']);
 
                 $manager->persist($category);
-                $this->addReference(
-                    'category_' . $user->getEmail() . '_' . $categoryData['name'],
-                    $category
-                );
+                $this->addReference("user_{$i}_category_{$key}", $category);
             }
+        }
+
+        for ($k = 0; $k < 10; $k++) {
+            $user = $this->getReference('user_' . $faker->numberBetween(1, $userCount), User::class);
+            $type = $faker->randomElement([TransactionType::INCOME, TransactionType::EXPENSE]);
+
+            $category = new Category();
+            $category->setUser($user);
+            $category->setName($faker->word() . ' Custom ' . $k);
+            $category->setType($type);
+            $category->setColor($faker->hexColor());
+            $manager->persist($category);
         }
 
         $manager->flush();
